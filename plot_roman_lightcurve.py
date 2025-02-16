@@ -50,9 +50,9 @@ def cc_bol(T, nu):
 
 
 def generate_roman_lc():
-    lamb_obs_um = 1
+    lamb_obs_um = 1 
     peakmag = 26
-    do_plot = False
+    verbose = False
     
     lamb_obs_cm = lamb_obs_um/1e+4
     
@@ -81,7 +81,7 @@ def generate_roman_lc():
             
             mpeaks_obs[j] = -2.5 * np.log10(Lnu_obs / (4 * np.pi* D_cms[j]**2)/3631e-23)
         
-        if do_plot:
+        if verbose:
             plt.figure()
             ax = plt.subplot(111)
             ax.plot(zs, mpeaks_obs)
@@ -96,7 +96,7 @@ def generate_roman_lc():
         myfunc = interp1d(mpeaks_obs, zs)
         zmaxs[i] = myfunc(peakmag)
     
-    plt.figure()
+    plt.figure(figsize = (5, 4))
     ax = plt.subplot(111)
     for i in range(len(tb)):
         ztfname = tb["ztfname"][i]
@@ -139,13 +139,16 @@ def generate_roman_lc():
         
         if atname == "2020vdq":
             label = "subluminous"
+            linestyle = "--"
         elif atname == "2020vwl":
             label = "typical"
+            linestyle = "-"
         elif atname == "2020acka":
             label = "overluminous"
+            linestyle = ":"
         label += ", "+r"$z = %.1f$"%(z)
         
-        ax.plot(t_obs, ymod, label = label)
+        ax.plot(t_obs, ymod, label = label, linestyle = linestyle)
         
     ax.set_ylim(30, peakmag - 0.2)
     ax.set_xlim(-520, 2000)
@@ -161,6 +164,7 @@ def generate_roman_lc():
     ax.set_xlabel("Days since maximum")
     ax.set_ylabel("Observed AB mag")
     ax.set_label("Roman TDE light curve")
+    plt.tight_layout()
     plt.savefig("./figs/tde_panel_1.pdf")
     
     
