@@ -49,9 +49,67 @@ def cc_bol(T, nu):
     return Planck(nu, T)*nu * np.pi /  (const.sigma_sb.cgs.value * T**4)
 
 
+def get_jetted_tde_lum(t=4, nu_rest = np.logspace(14, 15.5), verbose = False):
+    """
+    t: rest-frame days 
+    nu_rest: the observing band frequency in the TDE's rest frame
+    """
+    nu0 = 1e+15 # a reference frequency in the TDE's rest frame
+    
+    ### power-law component
+    tpeak_pl = 0.03 # in days
+    beta_rise = 3.62 
+    beta_decay = -0.46
+    Lnu0_peak_pl = 10**30.56 # erg/s/Hz
+    
+    L1_nu_ref = 0
+    if t <= tpeak_pl:
+        L1_nu_ref = Lnu0_peak_pl * 10**(beta_rise * (t - tpeak_pl))
+    else:
+        L1_nu_ref = Lnu0_peak_pl * 10**(beta_decay * (t - tpeak_pl))
+        
+    alpha = -1.11
+    L1_nu = L1_nu_ref * (nu_rest/nu0)**alpha
+    nuLnu_comp1 = nu_rest * L1_nu
+        
+    ### blackbody component
+    L0_peak_bb = 10**44.41 
+    tpeak_bb = 5.84 # in days
+    sigma_bb = 10**1.06
+    tau_bb = 10**1.53
+    T0 = 10**4.57
+    
+    L2_ref = 0 # nuLnu at nu0
+    if t<= tpeak_bb:
+        L2_ref = L0_peak_bb * np.exp(-1*(t - tpeak_bb)**2 / (2*sigma_bb**2))
+    else:
+        L2_ref = L0_peak_bb * np.exp(-1*(t - tpeak_bb) / tau_bb)
+    
+    _nuLnu = nu_rest * Planck(nu=nu_rest, T=T0)
+    _nuLnu_0 = nu0*Planck(nu=nu0, T=T0)
+    
+    nuLnu_comp2 = L2_ref * _nuLnu / _nuLnu_0
+        
+    
+    nuLnu = nuLnu_comp1 + nuLnu_comp2
+    
+    if verbose:
+        plt.figure()
+        plt.plot(nu_rest, nuLnu_comp1)
+        plt.plot(nu_rest, nuLnu_comp2)
+        plt.plot(nu_rest, nuLnu)
+        plt.semilogx()
+        plt.semilogy()
+        plt.xlabel("nu_rest (Hz)")
+        plt.xlabel("nuLnu (erg/s)")
+    return nuLnu
+    
+
+
 def generate_roman_lc():
     lamb_obs_um = 1 
     peakmag = 26
+    peakmag_jetted = 25.5
     verbose = False
     
     lamb_obs_cm = lamb_obs_um/1e+4
@@ -96,8 +154,49 @@ def generate_roman_lc():
         myfunc = interp1d(mpeaks_obs, zs)
         zmaxs[i] = myfunc(peakmag)
     
+    # calculate the maximum distance of a jetted TDE
+    mpeaks_obs = np.zeros(len(zs))
+    ts_rest = np.hstack([np.linspace(0.01, 0.09, 9), np.linspace(1, 6, 51)])
+    for j in range(len(zs)):
+        z = zs[j]
+        nu_rest = nu_obs * (1+z)
+        nuLnus = np.zeros(len(ts_rest))
+        for k in range(len(ts_rest)):
+            nuLnus[k] = get_jetted_tde_lum(ts_rest[k], nu_rest)
+        
+        mags_obs =  -2.5 * np.log10(nuLnus / nu_obs / (4 * np.pi * D_cms[j]**2) / (3631e-23))
+        #plt.plot(ts_rest, mags_obs)
+        mpeaks_obs[j] = min(mags_obs)
+    if verbose:
+        plt.figure()
+        ax = plt.subplot(111)
+        ax.plot(zs, mpeaks_obs)
+        ax.semilogy()
+        ax.semilogx()
+        ax.plot([zs[0], zs[-1]], [peakmag, peakmag])
+        ax.set_xlabel("z")
+        ax.set_ylabel("apparant mag")
+        ax.set_title("AT2022cmc")
+    myfunc = interp1d(mpeaks_obs, zs)
+    zmax_jetted = myfunc(peakmag_jetted)
+    
+    
     plt.figure(figsize = (5, 4))
     ax = plt.subplot(111)
+    
+    nu_rest_jetted = nu_obs * (1+zmax_jetted)
+    D_cm_jetted = cosmo.luminosity_distance([zmax_jetted])[0].value * 1e+6  * const.pc.cgs.value
+    ts_rest_jetted = np.hstack([np.linspace(0.001, 0.040, 41), np.linspace(0.05, 0.1, 6), 
+                                np.linspace(0.1, 5, 50), np.linspace(5, 50, 46)])
+    nuLnus_jetted = np.zeros(len(ts_rest_jetted))
+    for k in range(len(ts_rest_jetted)):
+        nuLnus_jetted[k] = get_jetted_tde_lum(ts_rest_jetted[k], nu_rest_jetted)
+    mags_obs_jetted =  -2.5 * np.log10(nuLnus_jetted / nu_obs / (4 * np.pi * D_cm_jetted**2) / (3631e-23))
+    ind_peak = np.argsort(mags_obs_jetted)[0]
+    ts_obs_jetted = (ts_rest_jetted - ts_rest_jetted[ind_peak])*(1+zmax_jetted)
+    ax.plot(ts_obs_jetted, mags_obs_jetted, label = "Jetted TDE, "+r"$z = %.1f$"%zmax_jetted,
+            linestyle = "--")
+    
     for i in range(len(tb)):
         ztfname = tb["ztfname"][i]
         atname = tb["atname"][i]
@@ -139,7 +238,7 @@ def generate_roman_lc():
         
         if atname == "2020vdq":
             label = "subluminous"
-            linestyle = "--"
+            linestyle = "-."
         elif atname == "2020vwl":
             label = "typical"
             linestyle = "-"
@@ -150,7 +249,7 @@ def generate_roman_lc():
         
         ax.plot(t_obs, ymod, label = label, linestyle = linestyle)
         
-    ax.set_ylim(30, peakmag - 0.2)
+    ax.set_ylim(30, peakmag_jetted - 0.2)
     ax.set_xlim(-520, 2000)
     ax.legend()
     ax.tick_params(which = 'major', length = 4, top=True, direction = "in", 
