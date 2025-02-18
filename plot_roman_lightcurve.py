@@ -181,6 +181,13 @@ def generate_roman_lc():
     zmax_jetted = myfunc(peakmag_jetted)
     
     
+    Dc_Gpc_jetted = cosmo.comoving_distance([zmax_jetted])[0].value /1e+3
+    frac = 49 /( 4*np.pi/np.pi**2*180**2)
+    rate_jetted_max =  0.06 * 4*np.pi / 3 * Dc_Gpc_jetted**3  * frac
+    rate_jetted =  0.02 * 4*np.pi / 3 * Dc_Gpc_jetted**3  * frac
+    rate_jetted_min =  0.01 * 4*np.pi / 3 * Dc_Gpc_jetted**3  * frac
+    print ("We can detect %.2f (%.2f--%.2f) jetted TDE per year"%(rate_jetted, rate_jetted_min, rate_jetted_max))
+    
     plt.figure(figsize = (5, 4))
     ax = plt.subplot(111)
     
@@ -196,6 +203,8 @@ def generate_roman_lc():
     ts_obs_jetted = (ts_rest_jetted - ts_rest_jetted[ind_peak])*(1+zmax_jetted)
     ax.plot(ts_obs_jetted, mags_obs_jetted, label = "Jetted TDE, "+r"$z = %.1f$"%zmax_jetted,
             linestyle = "--")
+    
+    
     
     for i in range(len(tb)):
         ztfname = tb["ztfname"][i]
